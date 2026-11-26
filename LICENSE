@@ -1,0 +1,50 @@
+MIT License
+
+Copyright (c) 2026 Laos Real-Time Hydromet Monitor Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------------------------
+THIRD-PARTY OPEN DATA & CARTOGRAPHIC ATTRIBUTION NOTICE
+-------------------------------------------------------------------------------
+While the client-side application source code (`index.html`, `styles.css`,
+`i18n.js`, `laos_data.js`, `api.js`, `app.js`, `start_tier1a.bat`) is licensed
+under the MIT License above, live hydrometeorological, satellite, radar, and
+map tile streams accessed at runtime remain governed by their respective
+upstream licenses and non-commercial terms of service:
+
+1. Weather & Flood Forecast APIs:
+   - Open-Meteo.com (https://open-meteo.com/) — Licensed under Attribution 4.0
+     International (CC BY 4.0) for Non-Commercial use (ECMWF IFS, JMA GSM,
+     DWD ICON, NOAA GFS, and Copernicus GloFAS v4.0).
+2. River Discharge Ensemble:
+   - Copernicus Emergency Management Service (CEMS) Global Flood Awareness
+     System (GloFAS v4.0) — Model-derived river discharge (m3/s).
+3. Geostationary Satellite Imagery:
+   - NASA Global Imagery Browse Services (GIBS) WMTS — JMA Himawari-9 AHI
+     (Band 13 Clean IR 10.4 um, Band 3 Red Visible, Air Mass RGB).
+4. Weather Radar Composite:
+   - RainViewer Public Weather Maps API (https://www.rainviewer.com/api.html) —
+     Past 2-hour composite reflectivity tiles up to Zoom Level 7.
+5. Regional Surface Synoptic Charts:
+   - Thai Meteorological Department (TMD, https://www.tmd.go.th/) and
+     Hydro-Informatics Institute (HII ThaiWater, https://tiwrm.hii.or.th/).
+6. Basemap Vector & Raster Tiles:
+   - OpenFreeMap (https://openfreemap.org/) and CARTO Basemaps, using data
+     (c) OpenStreetMap contributors under the Open Database License (ODbL).

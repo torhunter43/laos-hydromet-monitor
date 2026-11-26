@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laos Real-Time Hydromet Monitor • Tier 1A Zero-Key</title>
+  <meta name="description" content="Zero-key client-side Laos flood, rainfall, satellite cloud, and GloFAS v4.0 river discharge monitor across 18 provinces and paired upstream ridge centroids." />
+
+  <!-- Google Fonts: DM Sans, Noto Sans Thai, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Mapping & Data Visualization CSS (CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Local Design System Styles -->
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Minimal SaaS Top Header -->
+    <header id="app-header" class="app-header">
+      <div class="header-brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            <path d="M8 14c1.3-1.2 2.7-1.2 4 0s2.7 1.2 4 0" />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="app-title" data-i18n="app.title">ระบบเฝ้าระวังน้ำท่วม ฝน และอากาศ สปป.ลาว</h1>
+          <p class="app-subtitle" data-i18n="app.subtitle">Laos Real-Time Hydromet Monitor • Tier 1A Zero-Key</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-cluster">
+          <span id="clock-ict" class="mono-pill clock-pill" title="Indochina Time (UTC+7)">ICT --:--:-- | UTC --:--</span>
+          <span id="sync-status" class="status-pill status-idle" data-i18n="header.syncChecking">กำลังเตรียมเชื่อมต่อ...</span>
+        </div>
+
+        <div class="control-cluster">
+          <button id="btn-refresh" type="button" class="btn btn-primary" title="Refresh live weather and flood feeds">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+            <span data-i18n="header.refresh">รีเฟรชข้อมูล</span>
+          </button>
+
+          <button id="btn-focus-synoptic" type="button" class="btn btn-secondary" aria-pressed="false" data-i18n-title="header.focusSynopticTitle" title="ซ่อน/แสดง 4-Model + GloFAS และตาราง 18 แขวงในคลิกเดียว">
+            <span id="btn-focus-synoptic-text" data-i18n="header.hideAnalysis">ซ่อนกราฟ &amp; ตาราง</span>
+          </button>
+
+          <button id="btn-lang" type="button" class="btn btn-secondary mono-btn" aria-label="Toggle language TH or EN">
+            TH | EN
+          </button>
+
+          <button id="btn-theme" type="button" class="btn btn-icon" aria-label="Toggle dark or light theme" title="Toggle Theme">
+            <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2" /><path d="M12 20v2" />
+              <path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" />
+              <path d="M2 12h2" /><path d="M20 12h2" />
+              <path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
+            </svg>
+            <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- file:// Protocol Warning Banner (Hidden by Default) -->
+    <div id="file-protocol-banner" class="protocol-banner hidden" role="alert">
+      <div class="banner-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
+      </div>
+      <div class="banner-copy">
+        <strong data-i18n="banner.fileTitle">ตรวจพบการเปิดผ่าน file:// — กำลังใช้โหมดแผนที่สำรอง (Leaflet Fallback)</strong>
+        <span data-i18n="banner.fileBody">เบราว์เซอร์บล็อก Web Worker ของแผนที่ Vector เมื่อเปิดไฟล์โดยตรง กรุณาดับเบิลคลิก start_tier1a.bat เพื่อเปิดผ่าน http://127.0.0.1:8765 สำหรับ OpenFreeMap เต็มรูปแบบ (ชั้นดาวเทียมและกราฟยังทำงานปกติ)</span>
+      </div>
+    </div>
+
+    <main class="main-container">
+      <!-- Top 4 KPI Summary Cards -->
+      <section class="kpi-grid" aria-label="Key Hydrometeorological Indicators">
+        <article class="card kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="kpi.criticalLabel">แขวงเฝ้าระวังสูง / เสี่ยงน้ำท่วม</span>
+            <span class="kpi-badge kpi-badge-danger" aria-hidden="true">ALERT</span>
+          </div>
+          <div id="kpi-critical" class="kpi-value mono-num">-- / 18</div>
+          <div id="kpi-critical-sub" class="kpi-sub" data-i18n="kpi.criticalSub">เกณฑ์ฝน ≥90 มม./24ชม. หรือ GloFAS สูง</div>
+        </article>
+
+        <article class="card kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="kpi.maxRainLabel">ฝนพยากรณ์สูงสุด 24 ชม. (เมือง vs สันเขา)</span>
+            <span class="kpi-badge kpi-badge-primary" aria-hidden="true">24H MAX</span>
+          </div>
+          <div id="kpi-max-rain-24h" class="kpi-value mono-num">-- mm</div>
+          <div id="kpi-max-rain-24h-sub" class="kpi-sub" data-i18n="kpi.maxRainSub">เปรียบเทียบจุดหุบเขาและต้นน้ำ</div>
+        </article>
+
+        <article class="card kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="kpi.peakFlowLabel">อัตราไหลสูงสุด GloFAS v4.0</span>
+            <span class="kpi-badge kpi-badge-amber" aria-hidden="true">DISCHARGE</span>
+          </div>
+          <div id="kpi-peak-discharge" class="kpi-value mono-num">-- m³/s</div>
+          <div id="kpi-peak-discharge-sub" class="kpi-sub" data-i18n="kpi.peakFlowSub">อ้างอิงลำน้ำโขงและลุ่มน้ำสาขา</div>
+        </article>
+
+        <article class="card kpi-card">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="kpi.satLabel">ภาพดาวเทียม Himawari-9 &amp; เรดาร์</span>
+            <span class="kpi-badge kpi-badge-success" aria-hidden="true">GIBS / RV</span>
+          </div>
+          <div id="kpi-sat-status" class="kpi-value mono-num">--</div>
+          <div id="kpi-sat-status-sub" class="kpi-sub" data-i18n="kpi.satSub">เลือกชั้นข้อมูลด้านซ้ายบนของแผนที่</div>
+        </article>
+      </section>
+
+      <!-- Main Split Workspace: Big Overview Map + TMD Surface Synoptic Chart -->
+      <section id="workspace-split" class="workspace-split">
+        <!-- Map Card -->
+        <div class="card map-card">
+          <div class="map-stage">
+            <!-- Dedicated Empty Canvas Host for MapLibre GL JS (or Leaflet Fallback) -->
+            <div id="map-container" class="map-container" aria-label="Interactive Laos Flood and Weather Map"></div>
+
+            <!-- Floating Overlay Layer (Sits cleanly above MapLibre/Leaflet panes) -->
+            <div class="map-overlays">
+              <!-- Floating Top-Left Layer Control Card -->
+              <aside id="map-control-card" class="floating-card map-control-card" aria-label="Map and Satellite Layer Controls">
+                <div class="floating-card-head">
+                  <span class="floating-title" data-i18n="map.panelTitle">ชั้นข้อมูลแผนที่ &amp; ดาวเทียม</span>
+                  <button id="btn-toggle-layers" type="button" class="collapse-btn" aria-expanded="true" aria-controls="layer-controls-body" title="Collapse or expand layer panel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="m18 15-6-6-6 6" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div id="layer-controls-body" class="layer-controls-body">
+                  <div class="control-group">
+                    <label for="select-basemap" class="control-label" data-i18n="map.basemap">แผนที่ฐาน (OpenFreeMap)</label>
+                    <select id="select-basemap" class="control-select">
+                      <option value="liberty" data-i18n="map.basemapLiberty">Liberty (ภูมิประเทศ/ถนน)</option>
+                      <option value="positron" data-i18n="map.basemapPositron">Positron (สว่างเรียบ)</option>
+                      <option value="dark" selected data-i18n="map.basemapDark">Dark (โหมดมืด)</option>
+                      <option value="bright" data-i18n="map.basemapBright">Bright (คมชัดมาตรฐาน)</option>
+                    </select>
+                  </div>
+
+                  <label class="control-checkbox">
+                    <input id="toggle-station-icons" type="checkbox" checked />
+                    <span data-i18n="map.stationIcons">แสดงหมุดสถานี &amp; เส้นเชื่อม (M)</span>
+                  </label>
+
+                  <label id="wrap-th-markers" class="control-checkbox control-checkbox-sub">
+                    <input id="toggle-th-markers" type="checkbox" checked />
+                    <span data-i18n="map.thOverlay">แสดงป้ายชื่อแขวงและสถานี (TH/EN)</span>
+                  </label>
+
+                  <div class="control-divider"></div>
+
+                  <div class="control-group">
+                    <label for="select-gibs" class="control-label" data-i18n="map.gibsLayer">Himawari-9 (NASA GIBS WMTS)</label>
+                    <select id="select-gibs" class="control-select">
+                      <option value="none" data-i18n="map.gibsNone">ปิดภาพดาวเทียม</option>
+                      <option value="Band13_IR" selected data-i18n="map.gibsBand13">Band 13 Clean IR (ยอดเมฆพายุ)</option>
+                      <option value="Band3_Visible" data-i18n="map.gibsBand3">Band 3 Visible (ช่วงกลางวัน)</option>
+                      <option value="Air_Mass" data-i18n="map.gibsAirMass">Air Mass RGB (มวลอากาศ)</option>
+                    </select>
+                  </div>
+
+                  <div class="control-group">
+                    <div class="control-label-row">
+                      <label for="input-gibs-date" class="control-label" data-i18n="map.gibsDate">วันที่ภาพ (UTC)</label>
+                      <span id="gibs-range-note" class="muted-mini" data-i18n="map.gibsRange15d">ย้อนหลัง 15 วัน</span>
+                    </div>
+                    <div class="date-nav-row">
+                      <button id="btn-gibs-prev-day" type="button" class="btn btn-xs btn-secondary btn-step" title="Previous day" aria-label="Previous day">◀</button>
+                      <input id="input-gibs-date" type="date" class="control-input mono-num" />
+                      <button id="btn-gibs-next-day" type="button" class="btn btn-xs btn-secondary btn-step" title="Next day" aria-label="Next day">▶</button>
+                    </div>
+                  </div>
+
+                  <div class="control-row-2">
+                    <div class="control-group">
+                      <label for="select-gibs-slot" class="control-label" data-i18n="map.gibsSlotLabel">รอบเวลา (UTC / ICT)</label>
+                      <select id="select-gibs-slot" class="control-select">
+                        <option value="latest" selected data-i18n="map.gibsSlotLatest">ล่าสุด (Latest)</option>
+                        <option value="00" data-i18n="map.gibsSlot00">00 UTC (07:00 ICT)</option>
+                        <option value="06" data-i18n="map.gibsSlot06">06 UTC (13:00 ICT)</option>
+                        <option value="12" data-i18n="map.gibsSlot12">12 UTC (19:00 ICT)</option>
+                        <option value="18" data-i18n="map.gibsSlot18">18 UTC (01:00+1 ICT)</option>
+                      </select>
+                    </div>
+                    <div class="control-group">
+                      <div class="control-label-row">
+                        <label for="slider-gibs-opacity" class="control-label" data-i18n="map.gibsOpacity">ความทึบ</label>
+                        <span id="gibs-opacity-val" class="mono-num muted-mini">70%</span>
+                      </div>
+                      <input id="slider-gibs-opacity" type="range" min="0" max="100" value="70" class="control-range" />
+                    </div>
+                  </div>
+
+                  <div id="gibs-night-hint" class="gibs-night-hint hidden" data-i18n="map.gibsNightHint">
+                    โหมด Visible (Band 3) ช่วงกลางคืนภาพจะมืด แนะนำสลับเป็น Band 13 Clean IR
+                  </div>
+
+                  <div class="control-divider"></div>
+
+                  <div class="control-group">
+                    <label class="control-checkbox">
+                      <input id="toggle-rainviewer" type="checkbox" />
+                      <span data-i18n="map.rvToggle">เรดาร์ย้อนหลัง 2 ชม. (RainViewer)</span>
+                    </label>
+                    <span class="muted-mini" data-i18n="map.rvNote">Zoom ≤ 7 • ยุติ Nowcast แล้ว</span>
+                  </div>
+
+                  <div class="rv-playback-row">
+                    <button id="btn-rv-play" type="button" class="btn btn-xs btn-secondary" data-i18n="map.rvPlay">เล่น</button>
+                    <input id="slider-rv-frame" type="range" min="0" max="12" value="12" class="control-range" aria-label="RainViewer past radar frame slider" />
+                    <span id="rv-frame-time" class="mono-num muted-mini">--:--</span>
+                  </div>
+                </div>
+              </aside>
+
+              <!-- Floating Bottom-Left Map Legend -->
+              <aside id="map-legend-card" class="floating-card map-legend-card" aria-label="Map Legend">
+                <div class="floating-card-head">
+                  <span class="floating-title" data-i18n="legend.title">สัญลักษณ์ &amp; ระดับแจ้งเตือน</span>
+                  <button id="btn-toggle-legend" type="button" class="collapse-btn" aria-expanded="true" aria-controls="legend-body" title="Collapse or expand legend">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="m18 15-6-6-6 6" />
+                    </svg>
+                  </button>
+                </div>
+                <div id="legend-body" class="legend-body">
+                  <div class="legend-grid">
+                    <div class="legend-item"><span class="dot dot-normal"></span><span data-i18n="legend.normal">ปกติ (&lt;35 มม./24ชม.)</span></div>
+                    <div class="legend-item"><span class="dot dot-watch"></span><span data-i18n="legend.watch">เฝ้าระวัง (35–89 มม.)</span></div>
+                    <div class="legend-item"><span class="dot dot-alarm"></span><span data-i18n="legend.alarm">เตือนภัย (90–149 มม.)</span></div>
+                    <div class="legend-item"><span class="dot dot-flood"></span><span data-i18n="legend.flood">วิกฤต (≥150 มม./น้ำล้น)</span></div>
+                    <div class="legend-item"><span class="shape shape-circle"></span><span data-i18n="legend.town">ตัวเมืองแขวง (Valley)</span></div>
+                    <div class="legend-item"><span class="shape shape-triangle"></span><span data-i18n="legend.ridge">สันเขาต้นน้ำ (Ridge)</span></div>
+                    <div class="legend-item"><span class="shape shape-diamond"></span><span data-i18n="legend.gauge">จุดอ้างอิงแม่น้ำโขง</span></div>
+                    <div class="legend-item"><span class="shape shape-cursor-pin"></span><span data-i18n="legend.cursorPin">หมุดปรับตำแหน่ง (Cursor)</span></div>
+                    <div class="legend-item"><span class="shape shape-glofas"></span><span data-i18n="legend.glofas">จุดน้ำท่า GloFAS v4.0</span></div>
+                  </div>
+                  <div class="control-divider"></div>
+                  <label class="control-checkbox legend-toggle-row">
+                    <input id="toggle-cursor-mode" type="checkbox" checked />
+                    <span data-i18n="legend.toggleCursor">แสดงจุด GloFAS &amp; โหมดปรับพิกัด</span>
+                  </label>
+                </div>
+              </aside>
+            </div>
+
+            <!-- Zoom Earth-Inspired Quick Map HUD Action Pills -->
+            <div id="map-quick-bar" class="map-quick-bar" role="toolbar" aria-label="Quick Map View Controls">
+              <button id="btn-quick-stations" type="button" class="floating-card map-quick-pill" aria-pressed="true" data-i18n-title="map.quickStationsTitle" title="สลับการแสดงหมุดสถานีและเส้นเชื่อมบนแผนที่ (คีย์ M)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span id="btn-quick-stations-text" data-i18n="map.quickHidePins">ซ่อนหมุด (M)</span>
+              </button>
+              <button id="btn-quick-clean" type="button" class="floating-card map-quick-pill" aria-pressed="false" data-i18n-title="map.quickCleanTitle" title="เข้าสู่โหมด Clean View ซ่อนแผงลอยและหมุดชั่วคราว (คีย์ H)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+                <span id="btn-quick-clean-text" data-i18n="map.quickCleanEnter">Clean View (H)</span>
+              </button>
+            </div>
+
+            <!-- Live Cursor Coordinate & Pin Placement HUD -->
+            <div id="map-cursor-hud" class="floating-card map-cursor-hud" aria-live="polite">
+              <span id="cursor-hud-coords" class="mono-num cursor-hud-coords" data-i18n="map.cursorIdle">เลื่อนเมาส์บนแผนที่เพื่อดูพิกัด Lat, Lon</span>
+              <span id="cursor-hud-mode" class="cursor-hud-mode hidden"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TMD Surface Synoptic Chart Card (Side-by-Side beside Overview Map, Synced 15-Day Date/Slot) -->
+        <section id="tmd-synoptic-card" class="card tmd-synoptic-card" aria-labelledby="tmd-synoptic-title">
+          <div class="tmd-synoptic-header">
+            <div class="tmd-header-copy">
+              <div class="tmd-title-row">
+                <h2 id="tmd-synoptic-title" class="section-title" data-i18n="tmd.title">แผนที่อากาศผิวพื้น (TMD Surface Synoptic Chart)</h2>
+                <span id="tmd-chart-status" class="status-pill status-loading mono-num" data-i18n="tmd.statusLoading">กำลังโหลดแผนที่อากาศ...</span>
+              </div>
+              <p class="section-sub" data-i18n="tmd.subtitle">ซิงค์วันที่และรอบเวลา UTC/ICT เดียวกับภาพดาวเทียม Himawari-9 (ย้อนหลัง 15 วัน)</p>
+            </div>
+            <div class="tmd-header-actions">
+              <button id="btn-expand-tmd" type="button" class="btn btn-xs btn-secondary" data-i18n="tmd.expandBtn">ขยายเต็มจอ</button>
+              <button id="btn-toggle-tmd" type="button" class="collapse-btn" aria-expanded="true" aria-controls="tmd-synoptic-body" title="Collapse or expand TMD synoptic chart">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="tmd-synoptic-body" class="tmd-synoptic-body">
+            <div class="tmd-slot-bar">
+              <div class="tmd-slot-pills" role="group" aria-label="Synoptic UTC cycle selector">
+                <button type="button" class="btn btn-xs btn-secondary tmd-slot-pill active" data-slot="latest" data-i18n="tmd.slotLatest">ล่าสุด</button>
+                <button type="button" class="btn btn-xs btn-secondary tmd-slot-pill mono-num" data-slot="00">00Z</button>
+                <button type="button" class="btn btn-xs btn-secondary tmd-slot-pill mono-num" data-slot="06">06Z</button>
+                <button type="button" class="btn btn-xs btn-secondary tmd-slot-pill mono-num" data-slot="12">12Z</button>
+                <button type="button" class="btn btn-xs btn-secondary tmd-slot-pill mono-num" data-slot="18">18Z</button>
+              </div>
+              <span id="tmd-date-echo" class="mono-num muted-mini">--</span>
+            </div>
+
+            <div class="tmd-chart-stage">
+              <div id="tmd-chart-empty" class="tmd-chart-empty">
+                <p id="tmd-chart-empty-msg" class="tmd-empty-msg" data-i18n="tmd.loadingHint">กำลังตรวจสอบรอบแผนที่อากาศล่าสุดจากกรมอุตุนิยมวิทยา (TMD)...</p>
+                <div class="tmd-fallback-links">
+                  <a href="https://www.tmd.go.th/supportData/synopticCharts" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" data-i18n="tmd.sourceLink">เปิดหน้า TMD Synoptic Charts</a>
+                  <a href="https://tiwrm.hii.or.th/TyphoonTracking/wxImages/lastest_wc.jpg" target="_blank" rel="noopener noreferrer" class="btn btn-xs btn-secondary" data-i18n="tmd.hiiMirrorLink">เปิดภาพสำรอง HII Latest</a>
+                </div>
+              </div>
+              <img id="img-tmd-synoptic" class="tmd-chart-img hidden" referrerpolicy="no-referrer" alt="TMD Surface Synoptic Chart" />
+            </div>
+
+            <div class="tmd-chart-meta">
+              <span id="tmd-meta-url" class="mono-num muted-mini">--</span>
+              <div class="tmd-meta-links">
+                <a href="https://www.tmd.go.th/supportData/synopticCharts" target="_blank" rel="noopener noreferrer" data-i18n="tmd.sourceShort">แหล่งข้อมูล: TMD</a>
+                <span aria-hidden="true">•</span>
+                <a href="https://tiwrm.hii.or.th/TyphoonTracking/wxImages/lastest_wc.jpg" target="_blank" rel="noopener noreferrer" data-i18n="tmd.hiiShort">สำรอง: HII</a>
+                <span aria-hidden="true">•</span>
+                <span class="muted-mini" data-i18n="tmd.projectionNote">Regional Conic chart (00/06/12/18 UTC) — แสดงแยกไม่ฉายทับ Web Mercator</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- Full-Width Paired Node Investigation & Collapsible 4-Model / GloFAS Charts -->
+      <aside id="detail-panel" class="card detail-panel" aria-label="Selected Province Investigation Panel">
+        <div class="detail-head">
+          <div class="detail-head-row">
+            <div class="detail-head-titlewrap">
+              <span class="eyebrow" data-i18n="detail.sectionEyebrow">การวิเคราะห์เชิงลึกจุดคู่ขนาน (Paired Nodes)</span>
+              <h2 id="detail-title" class="detail-title" data-i18n="detail.selectPrompt">เลือกแขวงบนแผนที่หรือตารางด้านล่าง</h2>
+            </div>
+            <div class="section-actions">
+              <button id="btn-export-point-csv" type="button" class="btn btn-xs btn-secondary" disabled aria-disabled="true" title="ส่งออกไฟล์ CSV ปริมาณฝนรายชั่วโมง 5 วัน (4 โมเดล + ค่าเฉลี่ย) ของแขวงที่เลือกหรือจุด Cursor ที่ปักไว้" data-i18n-title="detail.exportCsvTitle">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span data-i18n="detail.exportCsv">ส่งออกฝน CSV (จุดนี้)</span>
+              </button>
+              <button id="btn-toggle-charts" type="button" class="btn btn-xs btn-secondary" aria-expanded="true" aria-controls="charts-stack" data-i18n="detail.hideCharts">ซ่อน 4-Model + GloFAS</button>
+              <button id="btn-toggle-detail" type="button" class="collapse-btn" aria-expanded="true" aria-controls="detail-panel-body" title="Collapse or expand Paired Nodes investigation panel">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="detail-badges" class="badge-row"></div>
+        </div>
+
+        <div id="detail-panel-body" class="detail-panel-body">
+          <div id="cursor-picker-bar" class="cursor-picker-bar">
+            <div class="cursor-picker-actions">
+              <button id="btn-pick-town" type="button" class="btn btn-xs btn-secondary picker-btn" data-pick-target="town" aria-pressed="false">
+                <span aria-hidden="true">📍</span>
+                <span data-i18n="picker.moveTown">ย้าย Town</span>
+              </button>
+              <button id="btn-pick-ridge" type="button" class="btn btn-xs btn-secondary picker-btn" data-pick-target="ridge" aria-pressed="false">
+                <span aria-hidden="true">⛰️</span>
+                <span data-i18n="picker.moveRidge">ย้าย Ridge</span>
+              </button>
+              <button id="btn-pick-glofas" type="button" class="btn btn-xs btn-secondary picker-btn" data-pick-target="glofas" aria-pressed="false">
+                <span aria-hidden="true">🌊</span>
+                <span data-i18n="picker.moveGlofas">ย้ายจุดน้ำท่า GloFAS</span>
+              </button>
+              <button id="btn-reset-custom-nodes" type="button" class="btn btn-xs btn-reset-picker hidden">
+                <span aria-hidden="true">↺</span>
+                <span data-i18n="picker.resetNodes">คืนค่าพิกัดเดิม</span>
+              </button>
+            </div>
+            <p id="cursor-picker-hint" class="cursor-picker-hint" data-i18n="picker.hint">
+              คลิกปุ่มแล้ววางตามเคอร์เซอร์ หรือลากหมุดของแขวงที่กำลังดูบนแผนที่ได้โดยตรง
+            </p>
+          </div>
+
+          <div id="detail-elevation-compare" class="elevation-compare-box">
+            --
+          </div>
+
+          <div class="detail-pills-grid">
+            <div class="metric-pill">
+              <span class="metric-pill-label" data-i18n="detail.townRainLabel">ฝนเมือง 24 ชม. / 5 วัน</span>
+              <strong id="detail-town-rain" class="metric-pill-value mono-num">--</strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill-label" data-i18n="detail.ridgeRainLabel">ฝนสันเขา 24 ชม. / 5 วัน</span>
+              <strong id="detail-ridge-rain" class="metric-pill-value mono-num">--</strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill-label" data-i18n="detail.glofasLabel">อัตราไหลสูงสุด GloFAS</span>
+              <strong id="detail-glofas-flow" class="metric-pill-value mono-num">--</strong>
+            </div>
+          </div>
+
+          <!-- 4-Model Rain Comparison + GloFAS Hydrograph (2-Col on Desktop, Collapsible) -->
+          <div id="charts-stack" class="charts-stack">
+            <div class="chart-card">
+              <div class="chart-head">
+                <h3 class="chart-title" data-i18n="detail.rainChartTitle">เปรียบเทียบฝน 4 โมเดล (ECMWF • JMA • ICON • GFS)</h3>
+                <p class="chart-sub" data-i18n="detail.rainChartSub">ฝนรายชั่วโมงพยากรณ์ 5 วัน: จุดตัวเมือง vs สันเขาต้นน้ำ</p>
+              </div>
+              <div id="chart-rain-models" class="echarts-box"></div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-head">
+                <h3 class="chart-title" data-i18n="detail.floodChartTitle">ไฮโดรกราฟ GloFAS v4.0 (ย้อนหลัง 5 วัน + พยากรณ์ 14 วัน)</h3>
+                <p class="chart-sub" data-i18n="detail.floodChartSub">ค่าเฉลี่ย (Mean) เทียบค่าสูงสุด (Max) — แสดงแนวโน้มและเกณฑ์ตลิ่งเมื่อมีสถานีอ้างอิง</p>
+              </div>
+              <div id="chart-flood-hydrograph" class="echarts-box"></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Full-Width 18-Province Screening Table (Collapsible) -->
+      <section id="screening-section" class="card table-card" aria-label="18-Province Hydromet Screening Table">
+        <div class="table-header-row">
+          <div>
+            <h2 class="section-title" data-i18n="table.title">ตารางคัดกรองความเสี่ยงฝนและน้ำท่วม 18 แขวง สปป.ลาว</h2>
+            <p class="section-sub" data-i18n="table.subtitle">คลิกแถวใดก็ได้เพื่อเลื่อนแผนที่ไปยังพื้นที่และดูกราฟ Paired Nodes + GloFAS</p>
+          </div>
+          <div class="table-header-actions">
+            <span id="table-count" class="mono-pill">18 / 18</span>
+            <button id="btn-toggle-table" type="button" class="btn btn-xs btn-secondary" aria-expanded="true" aria-controls="table-panel-body" data-i18n="table.hideTable">ซ่อนตาราง 18 แขวง</button>
+          </div>
+        </div>
+
+        <div id="table-panel-body" class="table-panel-body">
+
+        <div class="table-toolbar">
+          <div class="toolbar-filters">
+            <input id="filter-search" type="search" class="control-input search-input" data-i18n-placeholder="table.searchPlaceholder" placeholder="ค้นหาชื่อแขวง / ลุ่มน้ำ..." aria-label="Search province or basin" />
+
+            <select id="filter-basin" class="control-select filter-select" aria-label="Filter by river basin">
+              <option value="all" data-i18n="table.basinAll">ทุกลุ่มน้ำ</option>
+            </select>
+
+            <select id="filter-alert" class="control-select filter-select" aria-label="Filter by alert level">
+              <option value="all" data-i18n="table.alertAll">ทุกระดับแจ้งเตือน</option>
+              <option value="flood" data-i18n="table.alertFlood">วิกฤต / Flood</option>
+              <option value="alarm" data-i18n="table.alertAlarm">เตือนภัย / Alarm</option>
+              <option value="watch" data-i18n="table.alertWatch">เฝ้าระวัง / Watch</option>
+              <option value="normal" data-i18n="table.alertNormal">ปกติ / Normal</option>
+            </select>
+          </div>
+
+          <button id="btn-export-json" type="button" class="btn btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            <span data-i18n="table.exportJson">ส่งออก JSON</span>
+          </button>
+        </div>
+
+        <div class="table-scroll">
+          <table id="table-provinces" class="screening-table">
+            <thead>
+              <tr>
+                <th data-i18n="table.colProvince">แขวง (TH / EN)</th>
+                <th data-i18n="table.colBasin">ลุ่มน้ำหลัก</th>
+                <th class="num-col" data-i18n="table.colTownPeak">ฝนตัวเมือง (24ชม. / 5วัน)</th>
+                <th class="num-col" data-i18n="table.colRidgePeak">ฝนสันเขาต้นน้ำ (24ชม. / 5วัน)</th>
+                <th class="num-col" data-i18n="table.colSpread">ผลต่าง / อัตราขยายสันเขา</th>
+                <th class="num-col" data-i18n="table.colGlofas">GloFAS สูงสุด (ลบ.ม./วิ)</th>
+                <th class="center-col" data-i18n="table.colAlert">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody id="table-provinces-body">
+              <tr>
+                <td colspan="7" class="empty-state" data-i18n="table.loadingRow">กำลังเตรียมตาราง 18 แขวงและดึงข้อมูล Open-Meteo...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        </div>
+      </section>
+
+      <!-- Honest Data Attribution & Tier 1A / Tier 2 Limitations Footer -->
+      <footer id="footer-disclaimer" class="card footer-card">
+        <div class="footer-grid">
+          <div class="footer-block">
+            <h3 class="footer-title" data-i18n="footer.title">แหล่งข้อมูลเปิด (Tier 1A Zero-Key CORS APIs) และข้อจำกัดทางเทคนิค</h3>
+            <p class="footer-text" data-i18n="footer.sourcesBody">
+              ระบบ Tier 1A เชื่อมต่อโดยตรงจากเบราว์เซอร์แบบไม่ต้องใช้ API Key ด้วย 4+1 แหล่งข้อมูลเปิดที่มี CORS:
+              OpenFreeMap (Vector Tiles ภาษาอังกฤษ + ป้ายชื่อไทย/ลาวผ่าน DOM), NASA GIBS WMTS (Himawari-9 Band 13 IR, Band 3 Visible, Air Mass),
+              Open-Meteo Weather Forecast API (ECMWF IFS, JMA GSM, DWD ICON, GFS สำหรับการใช้งาน Non-Commercial),
+              Open-Meteo Flood API (GloFAS v4.0), และ RainViewer (เฉพาะเรดาร์ย้อนหลัง 2 ชม. ที่ Zoom ≤ 7)
+            </p>
+          </div>
+          <div class="footer-block">
+            <h3 class="footer-title" data-i18n="footer.limitsTitle">ขอบเขตเทียบกับ Tier 2a / 2b (Python Backend &amp; Account-Gated)</h3>
+            <p class="footer-text" data-i18n="footer.limitsBody">
+              ค่าฝนจากแบบจำลอง NWP เป็นค่ากริดเชิงตัวเลขไม่ใช่สถานีวัดจริง และพื้นที่นอกสถานีแม่น้ำโขงมีป้าย [Ungauged / Model-Derived] กำกับชัดเจน:
+              ส่วน METAR สนามบินลาว (aviationweather.gov — ไม่มีปริมาณฝน mm และติด CORS), GEOGloWS ECMWF v2, ThaiWater (ติด CORS),
+              Copernicus CEMS GFM v4.1.1 (SAR Flood ต้องใช้ EFAS JWT), JAXA GSMaP V9, NASA GPM IMERG V07, DAHITI และ Google Flood API ถูกแยกไว้ใน Tier 2a/2b Python Worker
+            </p>
+          </div>
+        </div>
+        <div class="footer-attribution-bar" aria-label="Upstream Open Data Attributions">
+          <span class="footer-attr-label">Open Data Attribution &amp; Licenses:</span>
+          <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" class="footer-attr-link">Weather &amp; Flood Data by Open-Meteo.com (CC BY 4.0)</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://global-flood.emergency.copernicus.eu/" target="_blank" rel="noopener noreferrer" class="footer-attr-link">Copernicus CEMS GloFAS v4.0</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://earthdata.nasa.gov/eosdis/science-system-description/eosdis-components/gibs" target="_blank" rel="noopener noreferrer" class="footer-attr-link">NASA GIBS (JMA Himawari-9 AHI)</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener noreferrer" class="footer-attr-link">RainViewer Radar</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://www.tmd.go.th/" target="_blank" rel="noopener noreferrer" class="footer-attr-link">TMD Surface Synoptic</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://tiwrm.hii.or.th/" target="_blank" rel="noopener noreferrer" class="footer-attr-link">HII ThaiWater</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://openfreemap.org/" target="_blank" rel="noopener noreferrer" class="footer-attr-link">OpenFreeMap</a>
+          <span class="footer-attr-sep" aria-hidden="true">•</span>
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="footer-attr-link">&copy; OpenStreetMap Contributors (ODbL)</a>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Fullscreen TMD Synoptic Chart Lightbox -->
+  <div id="tmd-lightbox" class="tmd-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="tmd-lightbox-title">
+    <div class="tmd-lightbox-dialog">
+      <div class="tmd-lightbox-toolbar">
+        <h3 id="tmd-lightbox-title" class="tmd-lightbox-title" data-i18n="tmd.title">แผนที่อากาศผิวพื้น (TMD Surface Synoptic Chart)</h3>
+        <button id="btn-close-tmd-lightbox" type="button" class="btn btn-xs btn-secondary" data-i18n="tmd.closeBtn">ปิด (Esc)</button>
+      </div>
+      <div class="tmd-lightbox-body">
+        <img id="img-tmd-lightbox" class="tmd-lightbox-img" referrerpolicy="no-referrer" alt="TMD Surface Synoptic Chart Fullscreen" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Deferred Classic Scripts (Works seamlessly over both http://127.0.0.1 and file://) -->
+  <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+
+  <script defer src="./i18n.js"></script>
+  <script defer src="./laos_data.js"></script>
+  <script defer src="./api.js"></script>
+  <script defer src="./app.js"></script>
+</body>
+</html>
