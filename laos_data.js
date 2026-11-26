@@ -26,8 +26,8 @@
         label_en: "Sangthong Uplands"
       },
       glofas_point: {
-        lat: 17.9283,
-        lon: 102.6200,
+        lat: 17.8750,
+        lon: 102.6250,
         label_th: "แม่น้ำโขง เวียงจันทน์ KM4",
         label_en: "Mekong @ Vientiane KM4"
       },
@@ -62,8 +62,8 @@
         label_en: "Upper Nam Ou Crest"
       },
       glofas_point: {
-        lat: 21.0670,
-        lon: 102.3760,
+        lat: 21.0750,
+        lon: 102.4750,
         label_th: "แม่น้ำอู @ เมืองขวา",
         label_en: "Nam Ou @ Muang Khoua"
       },
@@ -98,8 +98,8 @@
         label_en: "Vieng Phoukha Uplands"
       },
       glofas_point: {
-        lat: 20.9569,
-        lon: 101.3950,
+        lat: 20.8750,
+        lon: 101.4250,
         label_th: "ลุ่มน้ำทา @ หลวงน้ำทา",
         label_en: "Nam Tha @ Luang Namtha"
       },
@@ -134,8 +134,8 @@
         label_en: "Muang Namo Ridge"
       },
       glofas_point: {
-        lat: 20.6910,
-        lon: 101.9860,
+        lat: 20.7750,
+        lon: 102.0750,
         label_th: "น้ำกอ-น้ำแบง @ เมืองไชย",
         label_en: "Nam Ko-Beng @ Muang Xay"
       },
@@ -170,8 +170,8 @@
         label_en: "Pha Oudom Uplands"
       },
       glofas_point: {
-        lat: 20.2630,
-        lon: 100.4340,
+        lat: 20.2250,
+        lon: 100.4250,
         label_th: "แม่น้ำโขง @ ห้วยทราย",
         label_en: "Mekong @ Houayxay"
       },
@@ -206,8 +206,8 @@
         label_en: "Nong Khiaw Gorge (Nam Ou)"
       },
       glofas_point: {
-        lat: 19.8917,
-        lon: 102.1367,
+        lat: 19.9250,
+        lon: 102.1250,
         label_th: "แม่น้ำโขง @ หลวงพระบาง",
         label_en: "Mekong @ Luang Prabang"
       },
@@ -242,8 +242,8 @@
         label_en: "Viengxay Ridge"
       },
       glofas_point: {
-        lat: 20.4150,
-        lon: 104.0480,
+        lat: 20.3250,
+        lon: 104.1250,
         label_th: "น้ำซำ-น้ำม้า @ ซำเหนือ",
         label_en: "Nam Xam-Ma @ Xam Neua"
       },
@@ -278,8 +278,8 @@
         label_en: "Hongsa Highlands"
       },
       glofas_point: {
-        lat: 19.2576,
-        lon: 101.7103,
+        lat: 19.2250,
+        lon: 101.7750,
         label_th: "น้ำหุ่ง @ ไชยบุรี",
         label_en: "Nam Houng @ Sainyabuli"
       },
@@ -314,8 +314,8 @@
         label_en: "Nong Het Annamite Divide"
       },
       glofas_point: {
-        lat: 19.6326,
-        lon: 103.5678,
+        lat: 19.6250,
+        lon: 103.6750,
         label_th: "ต้นน้ำเนิด @ เมืองคำ",
         label_en: "Upper Nam Neun @ Muang Kham"
       },
@@ -350,8 +350,8 @@
         label_en: "Kasi Upper Nam Lik"
       },
       glofas_point: {
-        lat: 18.5800,
-        lon: 102.5700,
+        lat: 18.5250,
+        lon: 102.4750,
         label_th: "น้ำงึม @ เขื่อนน้ำงึม 1",
         label_en: "Nam Ngum @ Reservoir Outlet"
       },
@@ -386,8 +386,8 @@
         label_en: "Phou Bia Massif Crest"
       },
       glofas_point: {
-        lat: 18.8980,
-        lon: 103.0920,
+        lat: 18.7750,
+        lon: 102.9750,
         label_th: "ลุ่มน้ำซัน-น้ำงึม @ อนุวงศ์",
         label_en: "Nam Xan-Ngum @ Anouvong"
       },
@@ -422,8 +422,8 @@
         label_en: "Lak Sao / Upper Nam Kading"
       },
       glofas_point: {
-        lat: 18.3720,
-        lon: 103.6670,
+        lat: 18.3750,
+        lon: 103.6250,
         label_th: "แม่น้ำโขง @ ปากซัน",
         label_en: "Mekong @ Paksane"
       },
@@ -458,8 +458,8 @@
         label_en: "Boualapha Karst Headwaters"
       },
       glofas_point: {
-        lat: 17.3933,
-        lon: 104.8067,
+        lat: 17.3750,
+        lon: 104.7750,
         label_th: "แม่น้ำโขง @ ท่าแขก",
         label_en: "Mekong @ Thakhek"
       },
@@ -494,8 +494,8 @@
         label_en: "Nong / Sepon Annamite Crest"
       },
       glofas_point: {
-        lat: 16.5617,
-        lon: 104.7467,
+        lat: 16.5250,
+        lon: 104.7250,
         label_th: "แม่น้ำโขง @ สะหวันนะเขต",
         label_en: "Mekong @ Savannakhet"
       },
@@ -530,8 +530,8 @@
         label_en: "Ta Oy Annamite Uplands"
       },
       glofas_point: {
-        lat: 15.7167,
-        lon: 106.4167,
+        lat: 15.7750,
+        lon: 106.3250,
         label_th: "เซโดน @ สาละวัน",
         label_en: "Xe Don @ Salavan"
       },
@@ -566,8 +566,8 @@
         label_en: "Dak Cheung Plateau"
       },
       glofas_point: {
-        lat: 15.3440,
-        lon: 106.7180,
+        lat: 15.3750,
+        lon: 106.7250,
         label_th: "แม่น้ำเซกอง @ ละมาม",
         label_en: "Sekong River @ Lamam"
       },
@@ -602,8 +602,8 @@
         label_en: "Bolaven Plateau (Paksong)"
       },
       glofas_point: {
-        lat: 15.1167,
-        lon: 105.8000,
+        lat: 15.1250,
+        lon: 105.7750,
         label_th: "แม่น้ำโขง @ ปากเซ",
         label_en: "Mekong @ Pakse"
       },
@@ -638,8 +638,8 @@
         label_en: "Sanxay / Xe Kaman Uplands"
       },
       glofas_point: {
-        lat: 14.8000,
-        lon: 106.8130,
+        lat: 14.8250,
+        lon: 106.7750,
         label_th: "เซกะหมาน-เซกอง @ อัตตะปือ",
         label_en: "Xe Kaman-Sekong @ Attapeu"
       },

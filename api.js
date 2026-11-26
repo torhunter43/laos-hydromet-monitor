@@ -637,6 +637,209 @@
     });
   }
 
+  function buildPolygonVariableUrl(points, modelString, hourlyVar, withNanElevation) {
+    var lats = points.map(function (p) { return p.lat.toFixed(4); }).join(",");
+    var lons = points.map(function (p) { return p.lon.toFixed(4); }).join(",");
+    var url = (
+      FORECAST_ENDPOINT +
+      "?latitude=" + encodeURIComponent(lats) +
+      "&longitude=" + encodeURIComponent(lons) +
+      "&hourly=" + encodeURIComponent(hourlyVar) +
+      "&models=" + encodeURIComponent(modelString) +
+      "&cell_selection=nearest"
+    );
+    if (withNanElevation) {
+      var elevs = points.map(function () { return "nan"; }).join(",");
+      url += "&elevation=" + encodeURIComponent(elevs);
+    }
+    return (
+      url +
+      "&forecast_days=5" +
+      "&timezone=" + encodeURIComponent("Asia/Bangkok")
+    );
+  }
+
+  function extractHourlyModelMap(nodeData, modelDefs, baseVar) {
+    var hourly = (nodeData && nodeData.hourly) || {};
+    var timeArr = Array.isArray(hourly.time) ? hourly.time : [];
+    var byModel = {};
+    for (var i = 0; i < modelDefs.length; i++) {
+      var mId = modelDefs[i].id;
+      var suffixedKey = baseVar + "_" + mId;
+      var series = Array.isArray(hourly[suffixedKey]) ? hourly[suffixedKey] : null;
+      if (!series && i === 0 && Array.isArray(hourly[baseVar])) {
+        series = hourly[baseVar];
+      }
+      byModel[mId] = series || [];
+    }
+    return {
+      hourlyTime: timeArr,
+      byModel: byModel
+    };
+  }
+
+  function fetchPolygonRainAndTemp(points) {
+    if (!Array.isArray(points) || !points.length) {
+      return Promise.reject(new Error("No interior sample points inside boundary."));
+    }
+    var data = getData();
+    var modelDefs = data.FORECAST_MODELS || [];
+    var modelIds = modelDefs.map(function (m) { return m.id; });
+    var modelString = modelIds.join(",");
+
+    var BATCH_SIZE = 25;
+    var batches = [];
+    for (var bStart = 0; bStart < points.length; bStart += BATCH_SIZE) {
+      batches.push(points.slice(bStart, bStart + BATCH_SIZE));
+    }
+
+    var pointResults = [];
+    var chain = Promise.resolve();
+
+    batches.forEach(function (batchPts) {
+      chain = chain.then(function () {
+        var precipUrl = buildPolygonVariableUrl(batchPts, modelString, "precipitation", true);
+        var tempUrl = buildPolygonVariableUrl(batchPts, modelString, "temperature_2m", false);
+        return Promise.all([
+          fetchJsonWithTimeout(precipUrl, 30000),
+          fetchJsonWithTimeout(tempUrl, 30000)
+        ]).then(function (pair) {
+          var precipArr = normalizeBatchResponse(pair[0]);
+          var tempArr = normalizeBatchResponse(pair[1]);
+
+          for (var j = 0; j < batchPts.length; j++) {
+            var pt = batchPts[j];
+            var pNode = precipArr[j] || null;
+            var tNode = tempArr[j] || null;
+            var pParsed = extractHourlyModelMap(pNode, modelDefs, "precipitation");
+            var tParsed = extractHourlyModelMap(tNode, modelDefs, "temperature_2m");
+            var hTime = pParsed.hourlyTime.length ? pParsed.hourlyTime : tParsed.hourlyTime;
+
+            var byModel = {};
+            var meanPrecip = [];
+            var meanTemp = [];
+            for (var mi = 0; mi < modelIds.length; mi++) {
+              var mId = modelIds[mi];
+              byModel[mId] = {
+                precip: pParsed.byModel[mId] || [],
+                temp: tParsed.byModel[mId] || []
+              };
+            }
+            for (var tIdx = 0; tIdx < hTime.length; tIdx++) {
+              var pSum = 0;
+              var pCnt = 0;
+              var tSum = 0;
+              var tCnt = 0;
+              for (var mk = 0; mk < modelIds.length; mk++) {
+                var id2 = modelIds[mk];
+                var pv = byModel[id2].precip[tIdx];
+                var tv = byModel[id2].temp[tIdx];
+                if (typeof pv === "number" && isFinite(pv)) {
+                  pSum += pv;
+                  pCnt += 1;
+                }
+                if (typeof tv === "number" && isFinite(tv)) {
+                  tSum += tv;
+                  tCnt += 1;
+                }
+              }
+              meanPrecip.push(pCnt > 0 ? Number((pSum / pCnt).toFixed(2)) : null);
+              meanTemp.push(tCnt > 0 ? Number((tSum / tCnt).toFixed(2)) : null);
+            }
+
+            var refNode = pNode || tNode || {};
+            pointResults.push({
+              idx: pt.idx,
+              reqLat: pt.lat,
+              reqLon: pt.lon,
+              snappedLat: typeof refNode.latitude === "number" && isFinite(refNode.latitude) ? Number(refNode.latitude.toFixed(6)) : null,
+              snappedLon: typeof refNode.longitude === "number" && isFinite(refNode.longitude) ? Number(refNode.longitude.toFixed(6)) : null,
+              demElevM: tNode && typeof tNode.elevation === "number" && isFinite(tNode.elevation) ? Math.round(tNode.elevation) : null,
+              hourlyTime: hTime,
+              byModel: byModel,
+              meanPrecip: meanPrecip,
+              meanTemp: meanTemp
+            });
+          }
+        });
+      });
+    });
+
+    return chain.then(function () {
+      var refTimes = [];
+      for (var r = 0; r < pointResults.length; r++) {
+        if (pointResults[r].hourlyTime && pointResults[r].hourlyTime.length) {
+          refTimes = pointResults[r].hourlyTime.slice();
+          break;
+        }
+      }
+      var arealByModel = {};
+      for (var mi = 0; mi < modelIds.length; mi++) {
+        arealByModel[modelIds[mi]] = { precip: [], temp: [] };
+      }
+      var arealMeanPrecip = [];
+      var arealMeanTemp = [];
+
+      for (var t = 0; t < refTimes.length; t++) {
+        var ensPSum = 0;
+        var ensPCnt = 0;
+        var ensTSum = 0;
+        var ensTCnt = 0;
+
+        for (var mk = 0; mk < modelIds.length; mk++) {
+          var mId = modelIds[mk];
+          var mpSum = 0;
+          var mpCnt = 0;
+          var mtSum = 0;
+          var mtCnt = 0;
+
+          for (var p = 0; p < pointResults.length; p++) {
+            var ptObj = pointResults[p];
+            var pv = ptObj.byModel[mId] ? ptObj.byModel[mId].precip[t] : null;
+            var tv = ptObj.byModel[mId] ? ptObj.byModel[mId].temp[t] : null;
+            if (typeof pv === "number" && isFinite(pv)) {
+              mpSum += pv;
+              mpCnt += 1;
+            }
+            if (typeof tv === "number" && isFinite(tv)) {
+              mtSum += tv;
+              mtCnt += 1;
+            }
+          }
+
+          var avgP = mpCnt > 0 ? Number((mpSum / mpCnt).toFixed(2)) : null;
+          var avgT = mtCnt > 0 ? Number((mtSum / mtCnt).toFixed(2)) : null;
+          arealByModel[mId].precip.push(avgP);
+          arealByModel[mId].temp.push(avgT);
+
+          if (avgP !== null) {
+            ensPSum += avgP;
+            ensPCnt += 1;
+          }
+          if (avgT !== null) {
+            ensTSum += avgT;
+            ensTCnt += 1;
+          }
+        }
+
+        arealMeanPrecip.push(ensPCnt > 0 ? Number((ensPSum / ensPCnt).toFixed(2)) : null);
+        arealMeanTemp.push(ensTCnt > 0 ? Number((ensTSum / ensTCnt).toFixed(2)) : null);
+      }
+
+      return {
+        fetchedAtIso: new Date().toISOString(),
+        modelIds: modelIds,
+        hourlyTime: refTimes,
+        points: pointResults,
+        areal: {
+          byModel: arealByModel,
+          meanPrecip: arealMeanPrecip,
+          meanTemp: arealMeanTemp
+        }
+      };
+    });
+  }
+
   window.LaosFloodApp = window.LaosFloodApp || {};
   window.LaosFloodApp.API = {
     getUtcTodayDateStr: getUtcTodayDateStr,
@@ -649,6 +852,7 @@
     fetchRainViewerMeta: fetchRainViewerMeta,
     buildRainViewerTileUrl: buildRainViewerTileUrl,
     fetchAllProvinceHydromet: fetchAllProvinceHydromet,
-    fetchCustomPairHydromet: fetchCustomPairHydromet
+    fetchCustomPairHydromet: fetchCustomPairHydromet,
+    fetchPolygonRainAndTemp: fetchPolygonRainAndTemp
   };
 })();

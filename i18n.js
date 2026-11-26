@@ -157,7 +157,19 @@
       "detail.exportCsv": "ส่งออกฝน CSV (จุดนี้)",
       "detail.exportCsvTitle": "ส่งออกไฟล์ CSV ปริมาณฝนรายชั่วโมง 5 วัน (4 โมเดล + ค่าเฉลี่ย) ของแขวงที่เลือกหรือจุด Cursor ที่ปักไว้",
       "table.hideTable": "ซ่อนตาราง 18 แขวง",
-      "table.showTable": "แสดงตาราง 18 แขวง"
+      "table.showTable": "แสดงตาราง 18 แขวง",
+      "shp.title": "ขอบเขตพื้นที่ (Shapefile .zip / GeoJSON) — คำนวณฝน & อุณหภูมิ 2 ม.",
+      "shp.privacyBadge": "ประมวลผลในเครื่อง 100%",
+      "shp.uploadBtn": "อัปโหลด .zip / .geojson",
+      "shp.fetchBtn": "ดึงฝน & Temp 2m (4 โมเดล)",
+      "shp.fetchLoading": "กำลังดึงข้อมูลกริด...",
+      "shp.csvArealBtn": "CSV ค่าเฉลี่ยลุ่มน้ำ",
+      "shp.csvGridBtn": "CSV รายจุดกริด",
+      "shp.clearBtn": "ล้างขอบเขต",
+      "shp.hint": "อัปโหลดไฟล์ .zip (รวม .shp/.dbf/.prj) หรือ .geojson — สุ่มจุดกริดภายในขอบเขต (สูงสุด 50 จุด) ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์",
+      "shp.statusReady": "โหลด {name} ({polyCount} รูปหลายเหลี่ยม, {ptCount} จุดกริด) — กด \"ดึงฝน & Temp 2m\" เพื่อประมวลผล",
+      "shp.statusFetched": "ดึงข้อมูล {name} สำเร็จ ({ptCount} จุดกริด, {hours} ชม., {models} โมเดล) — พร้อมส่งออก CSV",
+      "shp.statusError": "ข้อผิดพลาด Shapefile: {msg}"
     },
 
     en: {
@@ -313,7 +325,19 @@
       "detail.exportCsv": "Export Rain CSV (Point)",
       "detail.exportCsvTitle": "Export 5-day hourly rainfall CSV (4 models + ensemble mean) for the selected province or Cursor-pinned location",
       "table.hideTable": "Hide 18-Province Matrix",
-      "table.showTable": "Show 18-Province Matrix"
+      "table.showTable": "Show 18-Province Matrix",
+      "shp.title": "Area Boundary (Shapefile .zip / GeoJSON) — Areal Rain & 2m Temp",
+      "shp.privacyBadge": "100% In-Browser (Private)",
+      "shp.uploadBtn": "Upload .zip / .geojson",
+      "shp.fetchBtn": "Fetch Rain & Temp 2m (4 Models)",
+      "shp.fetchLoading": "Fetching grid data...",
+      "shp.csvArealBtn": "CSV Areal Mean",
+      "shp.csvGridBtn": "CSV Grid Points",
+      "shp.clearBtn": "Clear Boundary",
+      "shp.hint": "Upload .zip (.shp/.dbf/.prj) or .geojson — samples interior grid points (max 50 pts) locally with zero server upload.",
+      "shp.statusReady": "Loaded {name} ({polyCount} polygon(s), {ptCount} grid pts) — click \"Fetch Rain & Temp 2m\" to run.",
+      "shp.statusFetched": "Fetched {name} ({ptCount} grid pts, {hours}h, {models} models) — CSV ready.",
+      "shp.statusError": "Shapefile error: {msg}"
     }
   };
 

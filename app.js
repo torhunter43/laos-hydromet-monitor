@@ -20,7 +20,7 @@
   var state = {
     selectedProvinceId: "vientiane_capital",
     userSelectedProvince: false,
-    basemapKey: "dark",
+    basemapKey: "bright",
     basemapManuallyOverridden: false,
     showStationIcons: true,
     showDomMarkers: true,
@@ -29,7 +29,17 @@
     gibsSlot: "latest",
     gibsMinDate: "",
     gibsMaxDate: "",
-    gibsOpacity: 0.7,
+    gibsOpacity: 0.3,
+    shapefile: {
+      name: "",
+      featureCollection: null,
+      bbox: null,
+      samplePoints: [],
+      loading: false,
+      error: null,
+      data: null
+    },
+    leafletShapefileGroup: null,
     gibsFallbackIndex: {},
     tmdExpanded: true,
     tmdLoadSeq: 0,
@@ -332,12 +342,11 @@
 
     if (saved === "light") {
       document.documentElement.classList.remove("dark");
-      state.basemapKey = "liberty";
     } else {
       document.documentElement.classList.add("dark");
-      state.basemapKey = "dark";
     }
 
+    state.basemapKey = "bright";
     var basemapSel = document.getElementById("select-basemap");
     if (basemapSel) {
       basemapSel.value = state.basemapKey;
@@ -355,13 +364,6 @@
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, nextDark ? "dark" : "light");
     } catch (_) {}
-
-    if (!state.basemapManuallyOverridden) {
-      state.basemapKey = nextDark ? "dark" : "liberty";
-      var basemapSel = document.getElementById("select-basemap");
-      if (basemapSel) basemapSel.value = state.basemapKey;
-      applyBasemap();
-    }
 
     renderCharts();
   }
@@ -1148,7 +1150,7 @@
 
   function initMapLibreMap() {
     var data = getData();
-    var styleUrl = (data.OPENFREEMAP_STYLES || {})[state.basemapKey] || data.OPENFREEMAP_STYLES.dark;
+    var styleUrl = (data.OPENFREEMAP_STYLES || {})[state.basemapKey] || data.OPENFREEMAP_STYLES.bright || data.OPENFREEMAP_STYLES.dark;
 
     try {
       var map = new window.maplibregl.Map({
@@ -1184,6 +1186,7 @@
         syncMapLibrePairedLinks();
         syncMapLibreGibsLayer();
         syncMapLibreRainViewerLayer();
+        syncMapLibreShapefileLayer();
         renderMapLibreMarkers();
       });
 
@@ -1496,6 +1499,7 @@
     syncLeafletBasemap();
     syncLeafletGibsLayer();
     syncLeafletRainViewerLayer();
+    syncLeafletShapefileLayer();
     renderLeafletMarkers();
   }
 
@@ -1523,7 +1527,7 @@
 
   function applyBasemap() {
     if (state.mapEngine === "maplibre" && state.mapLibreMap) {
-      var styleUrl = (getData().OPENFREEMAP_STYLES || {})[state.basemapKey] || getData().OPENFREEMAP_STYLES.dark;
+      var styleUrl = (getData().OPENFREEMAP_STYLES || {})[state.basemapKey] || getData().OPENFREEMAP_STYLES.bright || getData().OPENFREEMAP_STYLES.dark;
       state.mapLibreReady = false;
       state.mapLibreMap.setStyle(styleUrl, { diff: false });
     } else if (state.mapEngine === "leaflet") {
@@ -2969,16 +2973,22 @@
       lines.push(row.join(","));
     }
 
+    var filename = "laos_rain_4model_" + provSlug + (isCustom ? "_custom_pin_" : "_preset_") + getIctTimestampSlug() + ".csv";
+    return downloadCsvFile(lines, filename);
+  }
+
+  function getIctTimestampSlug() {
     var ictNow = new Date(Date.now() + 7 * 3600 * 1000);
-    var stampIct =
+    return (
       String(ictNow.getUTCFullYear()) +
       pad2(ictNow.getUTCMonth() + 1) +
       pad2(ictNow.getUTCDate()) + "_" +
       pad2(ictNow.getUTCHours()) +
-      pad2(ictNow.getUTCMinutes());
-    var provSlug = String(prov.id || "province").toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
-    var filename = "laos_rain_4model_" + provSlug + (isCustom ? "_custom_pin_" : "_preset_") + stampIct + ".csv";
+      pad2(ictNow.getUTCMinutes())
+    );
+  }
 
+  function downloadCsvFile(lines, filename) {
     var blob = new Blob(["\uFEFF" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -2989,6 +2999,603 @@
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     return true;
+  }
+
+  function getActiveModelIds() {
+    var defaultModels = ["ecmwf_ifs", "jma_seamless", "icon_seamless", "gfs_seamless"];
+    var modelDefs = getData().FORECAST_MODELS;
+    var modelIds = [];
+    if (Array.isArray(modelDefs) && modelDefs.length) {
+      for (var mi = 0; mi < modelDefs.length; mi++) {
+        if (modelDefs[mi] && modelDefs[mi].id) {
+          modelIds.push(modelDefs[mi].id);
+        }
+      }
+    }
+    return modelIds.length ? modelIds : defaultModels;
+  }
+
+  /* --------------------------------------------------------------------------
+     8B. Client-Side Shapefile / GeoJSON Polygon Upload, Sampling & CSV Export
+     -------------------------------------------------------------------------- */
+  function pointInRing(lon, lat, ring) {
+    if (!Array.isArray(ring) || ring.length < 3) return false;
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = Number(ring[i][0]);
+      var yi = Number(ring[i][1]);
+      var xj = Number(ring[j][0]);
+      var yj = Number(ring[j][1]);
+      if (!isFinite(xi) || !isFinite(yi) || !isFinite(xj) || !isFinite(yj)) continue;
+      var intersect = ((yi > lat) !== (yj > lat)) &&
+        (lon < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInPolygonRings(lon, lat, rings) {
+    if (!Array.isArray(rings) || !rings.length) return false;
+    if (!pointInRing(lon, lat, rings[0])) return false;
+    for (var h = 1; h < rings.length; h++) {
+      if (pointInRing(lon, lat, rings[h])) return false;
+    }
+    return true;
+  }
+
+  function pointInPolygons(lon, lat, polygons) {
+    for (var p = 0; p < polygons.length; p++) {
+      if (pointInPolygonRings(lon, lat, polygons[p])) return true;
+    }
+    return false;
+  }
+
+  function computeRingCentroid(ring) {
+    if (!Array.isArray(ring) || !ring.length) return null;
+    var len = ring.length;
+    if (len > 1 && ring[0][0] === ring[len - 1][0] && ring[0][1] === ring[len - 1][1]) {
+      len -= 1;
+    }
+    var sumLon = 0;
+    var sumLat = 0;
+    var cnt = 0;
+    for (var i = 0; i < len; i++) {
+      var lon = Number(ring[i][0]);
+      var lat = Number(ring[i][1]);
+      if (isFinite(lon) && isFinite(lat)) {
+        sumLon += lon;
+        sumLat += lat;
+        cnt += 1;
+      }
+    }
+    return cnt > 0 ? { lon: Number((sumLon / cnt).toFixed(4)), lat: Number((sumLat / cnt).toFixed(4)) } : null;
+  }
+
+  function normalizeShapefileGeoJson(raw) {
+    var featureList = [];
+    var pushFromObj = function (obj) {
+      if (!obj || typeof obj !== "object") return;
+      if (Array.isArray(obj)) {
+        for (var i = 0; i < obj.length; i++) pushFromObj(obj[i]);
+        return;
+      }
+      if (obj.type === "FeatureCollection" && Array.isArray(obj.features)) {
+        for (var f = 0; f < obj.features.length; f++) pushFromObj(obj.features[f]);
+        return;
+      }
+      if (obj.type === "Feature" && obj.geometry) {
+        featureList.push(obj);
+        return;
+      }
+      if (obj.type === "Polygon" || obj.type === "MultiPolygon") {
+        featureList.push({ type: "Feature", properties: {}, geometry: obj });
+      }
+    };
+    pushFromObj(raw);
+
+    var polygons = [];
+    var cleanFeatures = [];
+    var minLon = Infinity;
+    var minLat = Infinity;
+    var maxLon = -Infinity;
+    var maxLat = -Infinity;
+
+    var registerRing = function (ring) {
+      var out = [];
+      for (var r = 0; r < ring.length; r++) {
+        var pt = ring[r];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        var lon = Number(pt[0]);
+        var lat = Number(pt[1]);
+        if (!isFinite(lon) || !isFinite(lat)) continue;
+        if (Math.abs(lon) > 180 || Math.abs(lat) > 90) {
+          throw new Error("Coordinates out of WGS84 range (lon/lat); include a .prj file in the .zip.");
+        }
+        if (lon < minLon) minLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lon > maxLon) maxLon = lon;
+        if (lat > maxLat) maxLat = lat;
+        out.push([lon, lat]);
+      }
+      return out;
+    };
+
+    for (var fi = 0; fi < featureList.length; fi++) {
+      var feat = featureList[fi];
+      var geom = feat && feat.geometry;
+      if (!geom) continue;
+      if (geom.type === "Polygon" && Array.isArray(geom.coordinates)) {
+        var polyRings = [];
+        for (var ri = 0; ri < geom.coordinates.length; ri++) {
+          var cr = registerRing(geom.coordinates[ri]);
+          if (cr.length >= 3) polyRings.push(cr);
+        }
+        if (polyRings.length) {
+          polygons.push(polyRings);
+          cleanFeatures.push({
+            type: "Feature",
+            properties: feat.properties || {},
+            geometry: { type: "Polygon", coordinates: polyRings }
+          });
+        }
+      } else if (geom.type === "MultiPolygon" && Array.isArray(geom.coordinates)) {
+        var multiCoords = [];
+        for (var pi = 0; pi < geom.coordinates.length; pi++) {
+          var subRings = [];
+          var rawSub = geom.coordinates[pi] || [];
+          for (var sri = 0; sri < rawSub.length; sri++) {
+            var scr = registerRing(rawSub[sri]);
+            if (scr.length >= 3) subRings.push(scr);
+          }
+          if (subRings.length) {
+            polygons.push(subRings);
+            multiCoords.push(subRings);
+          }
+        }
+        if (multiCoords.length) {
+          cleanFeatures.push({
+            type: "Feature",
+            properties: feat.properties || {},
+            geometry: { type: "MultiPolygon", coordinates: multiCoords }
+          });
+        }
+      }
+    }
+
+    if (!polygons.length || !isFinite(minLon)) {
+      throw new Error("No Polygon or MultiPolygon features found.");
+    }
+
+    return {
+      polygons: polygons,
+      bbox: [minLon, minLat, maxLon, maxLat],
+      featureCollection: {
+        type: "FeatureCollection",
+        features: cleanFeatures
+      }
+    };
+  }
+
+  function sampleInteriorPoints(polygons, bbox) {
+    var MAX_POINTS = 50;
+    var minLon = bbox[0];
+    var minLat = bbox[1];
+    var maxLon = bbox[2];
+    var maxLat = bbox[3];
+
+    var collectAtStep = function (stepDeg) {
+      var collected = [];
+      for (var lat = minLat + stepDeg * 0.5; lat <= maxLat + 1e-9; lat += stepDeg) {
+        for (var lon = minLon + stepDeg * 0.5; lon <= maxLon + 1e-9; lon += stepDeg) {
+          if (pointInPolygons(lon, lat, polygons)) {
+            collected.push({
+              lat: Number(lat.toFixed(4)),
+              lon: Number(lon.toFixed(4))
+            });
+          }
+        }
+      }
+      return collected;
+    };
+
+    var step = 0.08;
+    var pts = collectAtStep(step);
+    var guard = 0;
+    while (pts.length > MAX_POINTS && guard < 12) {
+      step = step * Math.max(1.15, Math.sqrt(pts.length / 42));
+      pts = collectAtStep(step);
+      guard += 1;
+    }
+
+    if (pts.length > MAX_POINTS) {
+      var trimmed = [];
+      var stride = pts.length / MAX_POINTS;
+      for (var si = 0; si < MAX_POINTS; si++) {
+        trimmed.push(pts[Math.floor(si * stride)]);
+      }
+      pts = trimmed;
+    }
+
+    if (!pts.length) {
+      var fineStep = Math.max(Math.min(maxLon - minLon, maxLat - minLat) / 4, 0.004);
+      pts = collectAtStep(fineStep);
+      if (pts.length > MAX_POINTS) {
+        pts = pts.slice(0, MAX_POINTS);
+      }
+    }
+
+    if (!pts.length) {
+      var fallbackCenter = computeRingCentroid(polygons[0] && polygons[0][0]) || {
+        lat: Number(((minLat + maxLat) / 2).toFixed(4)),
+        lon: Number(((minLon + maxLon) / 2).toFixed(4))
+      };
+      pts = [fallbackCenter];
+    }
+
+    for (var k = 0; k < pts.length; k++) {
+      pts[k].idx = k + 1;
+    }
+    return pts;
+  }
+
+  function syncMapLibreShapefileLayer() {
+    var map = state.mapLibreMap;
+    if (!map || !state.mapLibreReady) return;
+    try {
+      if (!map.getStyle()) return;
+    } catch (_) {
+      return;
+    }
+
+    var shpState = state.shapefile || {};
+    var polyFc = shpState.featureCollection || { type: "FeatureCollection", features: [] };
+    var ptFeatures = [];
+    var pts = shpState.samplePoints || [];
+    for (var i = 0; i < pts.length; i++) {
+      ptFeatures.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [pts[i].lon, pts[i].lat] },
+        properties: { idx: pts[i].idx }
+      });
+    }
+    var ptsFc = { type: "FeatureCollection", features: ptFeatures };
+
+    if (map.getSource("shp-poly-src")) {
+      map.getSource("shp-poly-src").setData(polyFc);
+    } else {
+      map.addSource("shp-poly-src", { type: "geojson", data: polyFc });
+      map.addLayer({
+        id: "shp-poly-fill",
+        type: "fill",
+        source: "shp-poly-src",
+        paint: {
+          "fill-color": "#0ea5e9",
+          "fill-opacity": 0.16
+        }
+      });
+      map.addLayer({
+        id: "shp-poly-line",
+        type: "line",
+        source: "shp-poly-src",
+        paint: {
+          "line-color": "#0284c7",
+          "line-width": 2.4
+        }
+      });
+    }
+
+    if (map.getSource("shp-pts-src")) {
+      map.getSource("shp-pts-src").setData(ptsFc);
+    } else {
+      map.addSource("shp-pts-src", { type: "geojson", data: ptsFc });
+      map.addLayer({
+        id: "shp-pts-circle",
+        type: "circle",
+        source: "shp-pts-src",
+        paint: {
+          "circle-radius": 4.2,
+          "circle-color": "#0284c7",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.2
+        }
+      });
+    }
+  }
+
+  function syncLeafletShapefileLayer() {
+    var map = state.leafletMap;
+    if (!map || !window.L) return;
+    if (!state.leafletShapefileGroup) {
+      state.leafletShapefileGroup = window.L.layerGroup().addTo(map);
+    } else {
+      state.leafletShapefileGroup.clearLayers();
+    }
+
+    var shpState = state.shapefile || {};
+    if (shpState.featureCollection && shpState.featureCollection.features && shpState.featureCollection.features.length) {
+      window.L.geoJSON(shpState.featureCollection, {
+        style: {
+          color: "#0284c7",
+          weight: 2.4,
+          fillColor: "#0ea5e9",
+          fillOpacity: 0.16
+        }
+      }).addTo(state.leafletShapefileGroup);
+    }
+
+    var pts = shpState.samplePoints || [];
+    for (var i = 0; i < pts.length; i++) {
+      window.L.circleMarker([pts[i].lat, pts[i].lon], {
+        radius: 4.2,
+        color: "#ffffff",
+        weight: 1.2,
+        fillColor: "#0284c7",
+        fillOpacity: 0.95
+      }).addTo(state.leafletShapefileGroup);
+    }
+  }
+
+  function syncShapefileOverlay() {
+    if (state.mapEngine === "maplibre") {
+      syncMapLibreShapefileLayer();
+    } else if (state.mapEngine === "leaflet") {
+      syncLeafletShapefileLayer();
+    }
+  }
+
+  function fitBoundsToShapefile() {
+    var bbox = state.shapefile && state.shapefile.bbox;
+    if (!bbox) return;
+    if (state.mapEngine === "maplibre" && state.mapLibreMap) {
+      state.mapLibreMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 48, duration: 700 });
+    } else if (state.mapEngine === "leaflet" && state.leafletMap) {
+      state.leafletMap.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]], { padding: [40, 40] });
+    }
+  }
+
+  function updateShapefileUi() {
+    var shpState = state.shapefile || {};
+    var hasBoundary = Boolean(shpState.featureCollection && shpState.samplePoints && shpState.samplePoints.length);
+    var hasData = Boolean(shpState.data && shpState.data.hourlyTime && shpState.data.hourlyTime.length);
+
+    var btnFetch = document.getElementById("btn-shp-fetch");
+    if (btnFetch) {
+      btnFetch.disabled = Boolean(shpState.loading) || !hasBoundary;
+      btnFetch.textContent = t(shpState.loading ? "shp.fetchLoading" : "shp.fetchBtn");
+    }
+
+    var btnAreal = document.getElementById("btn-shp-csv-areal");
+    if (btnAreal) {
+      btnAreal.disabled = Boolean(shpState.loading) || !hasData;
+    }
+
+    var btnGrid = document.getElementById("btn-shp-csv-grid");
+    if (btnGrid) {
+      btnGrid.disabled = Boolean(shpState.loading) || !hasData;
+    }
+
+    var btnClear = document.getElementById("btn-shp-clear");
+    if (btnClear) {
+      btnClear.classList.toggle("hidden", !hasBoundary && !shpState.error);
+    }
+
+    var statusEl = document.getElementById("shapefile-status-text");
+    if (statusEl) {
+      if (shpState.error) {
+        statusEl.textContent = t("shp.statusError", { msg: shpState.error });
+      } else if (hasData) {
+        statusEl.textContent = t("shp.statusFetched", {
+          name: shpState.name || "Polygon",
+          ptCount: shpState.data.points.length,
+          hours: shpState.data.hourlyTime.length,
+          models: shpState.data.modelIds.length
+        });
+      } else if (hasBoundary) {
+        statusEl.textContent = t("shp.statusReady", {
+          name: shpState.name || "Polygon",
+          polyCount: shpState.featureCollection.features.length,
+          ptCount: shpState.samplePoints.length
+        });
+      } else {
+        statusEl.textContent = t("shp.hint");
+      }
+    }
+  }
+
+  function clearShapefileState() {
+    state.shapefile = {
+      name: "",
+      featureCollection: null,
+      bbox: null,
+      samplePoints: [],
+      loading: false,
+      error: null,
+      data: null
+    };
+    var inputEl = document.getElementById("input-shapefile");
+    if (inputEl) inputEl.value = "";
+    syncShapefileOverlay();
+    updateShapefileUi();
+  }
+
+  function handleShapefileUpload(file) {
+    if (!file) return;
+    var fileName = String(file.name || "boundary");
+    var lower = fileName.toLowerCase();
+    state.shapefile.error = null;
+    state.shapefile.data = null;
+
+    var processRawGeoJson = function (rawGeo) {
+      var normalized = normalizeShapefileGeoJson(rawGeo);
+      var pts = sampleInteriorPoints(normalized.polygons, normalized.bbox);
+      state.shapefile = {
+        name: fileName,
+        featureCollection: normalized.featureCollection,
+        bbox: normalized.bbox,
+        samplePoints: pts,
+        loading: false,
+        error: null,
+        data: null
+      };
+      syncShapefileOverlay();
+      fitBoundsToShapefile();
+      updateShapefileUi();
+    };
+
+    var handleParseError = function (err) {
+      state.shapefile.loading = false;
+      state.shapefile.error = err && err.message ? err.message : String(err || "Invalid file");
+      updateShapefileUi();
+    };
+
+    if (/\.zip$/.test(lower)) {
+      if (typeof window.shp !== "function") {
+        handleParseError(new Error("shpjs library unavailable; upload .geojson or check CDN connectivity."));
+        return;
+      }
+      file.arrayBuffer().then(function (buf) {
+        return window.shp(buf);
+      }).then(processRawGeoJson).catch(handleParseError);
+    } else if (/\.(geojson|json)$/.test(lower)) {
+      file.text().then(function (txt) {
+        return JSON.parse(txt);
+      }).then(processRawGeoJson).catch(handleParseError);
+    } else {
+      handleParseError(new Error("Unsupported extension; please upload .zip or .geojson/.json."));
+    }
+  }
+
+  function fetchShapefileWeather() {
+    var shpState = state.shapefile;
+    if (!shpState || !shpState.samplePoints || !shpState.samplePoints.length || shpState.loading) {
+      return Promise.resolve(null);
+    }
+    var api = getApi();
+    if (!api || typeof api.fetchPolygonRainAndTemp !== "function") {
+      return Promise.resolve(null);
+    }
+
+    shpState.loading = true;
+    shpState.error = null;
+    updateShapefileUi();
+
+    return api.fetchPolygonRainAndTemp(shpState.samplePoints)
+      .then(function (res) {
+        shpState.loading = false;
+        shpState.data = res;
+        updateShapefileUi();
+        return res;
+      })
+      .catch(function (err) {
+        shpState.loading = false;
+        shpState.error = err && err.message ? err.message : String(err || "Fetch failed");
+        updateShapefileUi();
+        return null;
+      });
+  }
+
+  function makeShapefileSlug() {
+    var base = String((state.shapefile && state.shapefile.name) || "boundary")
+      .replace(/\.(zip|geojson|json)$/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_");
+    return base || "boundary";
+  }
+
+  function exportShapefileArealCsv() {
+    var shpState = state.shapefile;
+    var d = shpState && shpState.data;
+    if (!d || !Array.isArray(d.hourlyTime) || !d.hourlyTime.length) return false;
+
+    var modelIds = d.modelIds || getActiveModelIds();
+    var bbox = shpState.bbox || [];
+    var bboxStr = bbox.length === 4 ? bbox.map(function (v) { return v.toFixed(4); }).join(", ") : "na";
+
+    var lines = [
+      "# Laos Hydromet Monitor (Tier 1A) - Shapefile Areal Mean Rainfall & 2m Temperature CSV",
+      "# boundary_file: " + csvEscapeCell(shpState.name) + " | polygons: " + String((shpState.featureCollection && shpState.featureCollection.features.length) || 0) + " | sample_grid_points: " + String(d.points.length),
+      "# bbox_wgs84_minlon_minlat_maxlon_maxlat: " + bboxStr,
+      "# precip_params: cell_selection=nearest; elevation=nan (raw model precip); models=" + modelIds.join(","),
+      "# temp2m_params: cell_selection=nearest; DEM=90m_lapse_rate (no elevation=nan); units=degC",
+      "# privacy_mode: 100pct_client_side_browser_ram | timezone: Asia/Bangkok | fetched_at_iso: " + String(d.fetchedAtIso || "")
+    ];
+
+    var header = ["timestamp_ict"];
+    for (var i = 0; i < modelIds.length; i++) header.push("rain_" + modelIds[i] + "_mm");
+    header.push("rain_ensemble_mean_mm");
+    for (var j = 0; j < modelIds.length; j++) header.push("temp2m_" + modelIds[j] + "_c");
+    header.push("temp2m_ensemble_mean_c");
+    lines.push(header.join(","));
+
+    for (var tIdx = 0; tIdx < d.hourlyTime.length; tIdx++) {
+      var row = [csvEscapeCell(d.hourlyTime[tIdx])];
+      for (var mi = 0; mi < modelIds.length; mi++) {
+        var mp = d.areal.byModel[modelIds[mi]] && d.areal.byModel[modelIds[mi]].precip;
+        row.push(formatCsvMetricNumber(mp ? mp[tIdx] : null, 2));
+      }
+      row.push(formatCsvMetricNumber(d.areal.meanPrecip[tIdx], 2));
+      for (var mj = 0; mj < modelIds.length; mj++) {
+        var mt = d.areal.byModel[modelIds[mj]] && d.areal.byModel[modelIds[mj]].temp;
+        row.push(formatCsvMetricNumber(mt ? mt[tIdx] : null, 2));
+      }
+      row.push(formatCsvMetricNumber(d.areal.meanTemp[tIdx], 2));
+      lines.push(row.join(","));
+    }
+
+    var filename = "laos_shp_areal_" + makeShapefileSlug() + "_" + getIctTimestampSlug() + ".csv";
+    return downloadCsvFile(lines, filename);
+  }
+
+  function exportShapefileGridCsv() {
+    var shpState = state.shapefile;
+    var d = shpState && shpState.data;
+    if (!d || !Array.isArray(d.points) || !d.points.length) return false;
+
+    var modelIds = d.modelIds || getActiveModelIds();
+    var lines = [
+      "# Laos Hydromet Monitor (Tier 1A) - Shapefile Per-Grid-Point Rainfall & 2m Temperature CSV",
+      "# boundary_file: " + csvEscapeCell(shpState.name) + " | sample_grid_points: " + String(d.points.length),
+      "# precip_params: cell_selection=nearest; elevation=nan | temp2m_params: cell_selection=nearest; DEM=90m_lapse_rate",
+      "# privacy_mode: 100pct_client_side_browser_ram | timezone: Asia/Bangkok | fetched_at_iso: " + String(d.fetchedAtIso || "")
+    ];
+
+    var header = ["point_id", "req_lat", "req_lon", "snapped_lat", "snapped_lon", "dem_elev_m", "timestamp_ict"];
+    for (var i = 0; i < modelIds.length; i++) header.push("rain_" + modelIds[i] + "_mm");
+    header.push("rain_ensemble_mean_mm");
+    for (var j = 0; j < modelIds.length; j++) header.push("temp2m_" + modelIds[j] + "_c");
+    header.push("temp2m_ensemble_mean_c");
+    lines.push(header.join(","));
+
+    for (var pi = 0; pi < d.points.length; pi++) {
+      var pt = d.points[pi];
+      var ptId = "P" + pad2(pt.idx || (pi + 1));
+      var times = pt.hourlyTime || d.hourlyTime || [];
+      for (var tIdx = 0; tIdx < times.length; tIdx++) {
+        var row = [
+          ptId,
+          formatCsvMetricNumber(pt.reqLat, 4),
+          formatCsvMetricNumber(pt.reqLon, 4),
+          formatCsvMetricNumber(pt.snappedLat, 6),
+          formatCsvMetricNumber(pt.snappedLon, 6),
+          pt.demElevM !== null && pt.demElevM !== undefined ? String(pt.demElevM) : "",
+          csvEscapeCell(times[tIdx])
+        ];
+        for (var mi = 0; mi < modelIds.length; mi++) {
+          var mp = pt.byModel[modelIds[mi]] && pt.byModel[modelIds[mi]].precip;
+          row.push(formatCsvMetricNumber(mp ? mp[tIdx] : null, 2));
+        }
+        row.push(formatCsvMetricNumber(pt.meanPrecip[tIdx], 2));
+        for (var mj = 0; mj < modelIds.length; mj++) {
+          var mt = pt.byModel[modelIds[mj]] && pt.byModel[modelIds[mj]].temp;
+          row.push(formatCsvMetricNumber(mt ? mt[tIdx] : null, 2));
+        }
+        row.push(formatCsvMetricNumber(pt.meanTemp[tIdx], 2));
+        lines.push(row.join(","));
+      }
+    }
+
+    var filename = "laos_shp_grid_" + makeShapefileSlug() + "_" + getIctTimestampSlug() + ".csv";
+    return downloadCsvFile(lines, filename);
   }
 
   /* --------------------------------------------------------------------------
@@ -3214,12 +3821,12 @@
     var sliderOpacity = document.getElementById("slider-gibs-opacity");
     var opacityVal = document.getElementById("gibs-opacity-val");
     if (sliderOpacity) {
-      var initialPct = Number(sliderOpacity.value || 70);
+      var initialPct = sliderOpacity.value === "" ? 30 : Number(sliderOpacity.value);
       state.gibsOpacity = initialPct / 100;
       if (opacityVal) opacityVal.textContent = initialPct + "%";
 
       sliderOpacity.addEventListener("input", function () {
-        var pct = Number(this.value || 70);
+        var pct = this.value === "" ? 30 : Number(this.value);
         state.gibsOpacity = pct / 100;
         if (opacityVal) opacityVal.textContent = pct + "%";
 
@@ -3363,6 +3970,34 @@
       btnExportPointCsv.addEventListener("click", exportSelectedPointCsv);
     }
 
+    var inputShapefile = document.getElementById("input-shapefile");
+    if (inputShapefile) {
+      inputShapefile.addEventListener("change", function () {
+        var f = this.files && this.files[0];
+        if (f) handleShapefileUpload(f);
+      });
+    }
+
+    var btnShpFetch = document.getElementById("btn-shp-fetch");
+    if (btnShpFetch) {
+      btnShpFetch.addEventListener("click", fetchShapefileWeather);
+    }
+
+    var btnShpAreal = document.getElementById("btn-shp-csv-areal");
+    if (btnShpAreal) {
+      btnShpAreal.addEventListener("click", exportShapefileArealCsv);
+    }
+
+    var btnShpGrid = document.getElementById("btn-shp-csv-grid");
+    if (btnShpGrid) {
+      btnShpGrid.addEventListener("click", exportShapefileGridCsv);
+    }
+
+    var btnShpClear = document.getElementById("btn-shp-clear");
+    if (btnShpClear) {
+      btnShpClear.addEventListener("click", clearShapefileState);
+    }
+
     var btnExpandTmd = document.getElementById("btn-expand-tmd");
     if (btnExpandTmd) {
       btnExpandTmd.addEventListener("click", openTmdLightbox);
@@ -3445,6 +4080,7 @@
       renderTmdStatusFromLoaded();
       syncNightHint();
       syncSectionVisibilityUi();
+      updateShapefileUi();
       if (!state.hoveredCoords) {
         clearCursorHudCoords();
       }
@@ -3488,6 +4124,10 @@
     selectProvince: selectProvince,
     exportSnapshot: exportSnapshotJson,
     exportPointCsv: exportSelectedPointCsv,
+    fetchShapefileWeather: fetchShapefileWeather,
+    exportShapefileArealCsv: exportShapefileArealCsv,
+    exportShapefileGridCsv: exportShapefileGridCsv,
+    clearShapefile: clearShapefileState,
     getState: function () { return state; }
   };
 

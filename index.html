@@ -156,8 +156,8 @@
                     <select id="select-basemap" class="control-select">
                       <option value="liberty" data-i18n="map.basemapLiberty">Liberty (ภูมิประเทศ/ถนน)</option>
                       <option value="positron" data-i18n="map.basemapPositron">Positron (สว่างเรียบ)</option>
-                      <option value="dark" selected data-i18n="map.basemapDark">Dark (โหมดมืด)</option>
-                      <option value="bright" data-i18n="map.basemapBright">Bright (คมชัดมาตรฐาน)</option>
+                      <option value="dark" data-i18n="map.basemapDark">Dark (โหมดมืด)</option>
+                      <option value="bright" selected data-i18n="map.basemapBright">Bright (คมชัดมาตรฐาน)</option>
                     </select>
                   </div>
 
@@ -209,9 +209,9 @@
                     <div class="control-group">
                       <div class="control-label-row">
                         <label for="slider-gibs-opacity" class="control-label" data-i18n="map.gibsOpacity">ความทึบ</label>
-                        <span id="gibs-opacity-val" class="mono-num muted-mini">70%</span>
+                        <span id="gibs-opacity-val" class="mono-num muted-mini">30%</span>
                       </div>
-                      <input id="slider-gibs-opacity" type="range" min="0" max="100" value="70" class="control-range" />
+                      <input id="slider-gibs-opacity" type="range" min="0" max="100" value="30" class="control-range" />
                     </div>
                   </div>
 
@@ -406,6 +406,25 @@
             </p>
           </div>
 
+          <!-- Client-Side Shapefile / GeoJSON Polygon Upload & Rain+Temp CSV Export -->
+          <div id="shapefile-export-bar" class="shapefile-bar">
+            <div class="shapefile-bar-header">
+              <span class="cursor-picker-title" data-i18n="shp.title">ขอบเขตพื้นที่ (Shapefile .zip / GeoJSON) — คำนวณฝน &amp; อุณหภูมิ 2 ม.</span>
+              <span id="shp-privacy-badge" class="chip chip-ok" data-i18n="shp.privacyBadge">ประมวลผลในเครื่อง 100%</span>
+            </div>
+            <div class="shapefile-bar-actions">
+              <input id="input-shapefile" type="file" accept=".zip,.geojson,.json" class="hidden" />
+              <label for="input-shapefile" id="btn-upload-shapefile" class="btn btn-sm btn-shp-upload" data-i18n="shp.uploadBtn">อัปโหลด .zip / .geojson</label>
+              <button id="btn-shp-fetch" type="button" class="btn btn-sm btn-shp-fetch" disabled data-i18n="shp.fetchBtn">ดึงฝน &amp; Temp 2m (4 โมเดล)</button>
+              <button id="btn-shp-csv-areal" type="button" class="btn btn-sm btn-csv-export" disabled data-i18n="shp.csvArealBtn">CSV ค่าเฉลี่ยลุ่มน้ำ</button>
+              <button id="btn-shp-csv-grid" type="button" class="btn btn-sm btn-csv-export" disabled data-i18n="shp.csvGridBtn">CSV รายจุดกริด</button>
+              <button id="btn-shp-clear" type="button" class="btn btn-sm btn-reset-picker hidden" data-i18n="shp.clearBtn">ล้างขอบเขต</button>
+            </div>
+            <div id="shapefile-status-text" class="shapefile-status-text" data-i18n="shp.hint">
+              อัปโหลดไฟล์ .zip (รวม .shp/.dbf/.prj) หรือ .geojson — สุ่มจุดกริดภายในขอบเขต (สูงสุด 50 จุด) ไม่ส่งไฟล์ขึ้นเซิร์ฟเวอร์
+            </div>
+          </div>
+
           <div id="detail-elevation-compare" class="elevation-compare-box">
             --
           </div>
@@ -571,6 +590,7 @@
   <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js"></script>
 
   <script defer src="./i18n.js"></script>
   <script defer src="./laos_data.js"></script>
